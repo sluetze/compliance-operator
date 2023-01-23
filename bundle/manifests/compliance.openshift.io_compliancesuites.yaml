@@ -79,6 +79,11 @@ spec:
                         from. This is useful for disconnected installations with access
                         to a proxy.
                       type: string
+                    maxRetryOnTimeout:
+                      default: 3
+                      description: MaxRetryOnTimeout is the maximum number of times
+                        the scan will be retried if it times out.
+                      type: integer
                     name:
                       description: Contains a human readable name for the scan. This
                         is to identify the objects that it creates.
@@ -304,6 +309,11 @@ spec:
                       required:
                       - name
                       type: object
+                    timeout:
+                      default: 30m
+                      description: Timeout is the maximum amount of time the scan
+                        can run. If the scan hasn't finished by then, it will be aborted.
+                      type: string
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
@@ -431,6 +441,9 @@ spec:
                       description: Is the phase where the scan is at. Normally, one
                         must wait for the scan to reach the phase DONE.
                       type: string
+                    remainingRetries:
+                      description: Is the number of retries left for the scan on timeout
+                      type: integer
                     result:
                       description: Once the scan reaches the phase DONE, this will
                         contain the result of the scan. Where COMPLIANT means that

@@ -48,6 +48,11 @@ spec:
               object represents. Servers may infer this from the endpoint the client
               submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
+          maxRetryOnTimeout:
+            default: 3
+            description: MaxRetryOnTimeout is the maximum number of times the scan
+              will be retried if it times out.
+            type: integer
           metadata:
             type: object
           noExternalResources:
@@ -242,6 +247,11 @@ spec:
               be strict and error out. `false` means that we don't need to be strict
               and we can proceed.
             type: boolean
+          timeout:
+            default: 30m
+            description: Timeout is the maximum amount of time the scan can run. If
+              the scan hasn't finished by then, it will be aborted.
+            type: string
         type: object
     served: true
     storage: true

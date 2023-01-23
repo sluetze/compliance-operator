@@ -9,6 +9,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Enhancements
 
+-
+
+### Fixes
+
+-
+
+### Internal Changes
+
+-
+
+### Deprecations
+
+-
+
+### Removals
+
+-
+
+### Security
+
+-
+
+
+## [0.1.60] - 2023-01-23
+
+### Enhancements
+
 - Added support for timeout for Scanner Pod. The timeout is
   specified in the `ComplianceScanSettings` object as a duration string,
   e.g. `1h30m`. If the scan is not completed within the timeout, the

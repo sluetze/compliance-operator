@@ -54,6 +54,9 @@ spec:
             type: string
           metadata:
             type: object
+          rationale:
+            description: The rationale of the Rule
+            type: string
           severity:
             description: The severity of a check status
             type: string
