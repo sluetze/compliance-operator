@@ -35,10 +35,23 @@ rules:
       - watch
   # These are needed for remediating objects
   - apiGroups:
+      - template.openshift.io
+    resources:
+      - templates
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - create
+      - delete
+  - apiGroups:
       - config.openshift.io
     resources:
       - apiservers
       - oauths
+      - projects
     resourceNames:
       - cluster
     verbs:

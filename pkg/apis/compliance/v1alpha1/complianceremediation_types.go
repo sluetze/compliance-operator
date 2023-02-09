@@ -123,6 +123,17 @@ type ComplianceRemediationPayload struct {
 	Object *unstructured.Unstructured `json:"object,omitempty"`
 }
 
+func (p *ComplianceRemediationPayload) normalized() *ComplianceRemediationPayload {
+	n := p.DeepCopy()
+	if n.Object == nil {
+		return n
+	}
+	if n.Object.GetAnnotations() == nil {
+		n.Object.SetAnnotations(map[string]string{})
+	}
+	return n
+}
+
 // ComplianceRemediationSpec defines the desired state of ComplianceRemediation
 // +k8s:openapi-gen=true
 type ComplianceRemediationSpec struct {
@@ -164,7 +175,7 @@ type ComplianceRemediation struct {
 }
 
 func (r *ComplianceRemediation) RemediationPayloadDiffers(other *ComplianceRemediation) bool {
-	return !reflect.DeepEqual(r.Spec.Current, other.Spec.Current)
+	return !reflect.DeepEqual(r.Spec.Current.normalized(), other.Spec.Current.normalized())
 }
 
 func (r *ComplianceRemediation) GetSuite() string {

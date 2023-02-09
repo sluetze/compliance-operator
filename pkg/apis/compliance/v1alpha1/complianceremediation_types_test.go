@@ -3,10 +3,62 @@ package v1alpha1
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"reflect"
 )
 
 var _ = Describe("Testing ComplianceRemediation API", func() {
+	When("handling ComplianceRemediationPayload sub-API", func() {
+		var payload *ComplianceRemediationPayload
+
+		BeforeEach(func() {
+			payload = &ComplianceRemediationPayload{}
+		})
+
+		It("handles normalizing payload with no object", func() {
+			n := payload.normalized()
+			Expect(n).ToNot(BeNil())
+			Expect(n.Object).To(BeNil())
+		})
+
+		It("normalizes missing annotations", func() {
+			cm := &corev1.ConfigMap{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-cm",
+					Namespace: "test-ns",
+				},
+				Data: map[string]string{
+					"key": "val",
+				},
+			}
+
+			unstructuredCM, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
+			Expect(err).ToNot(HaveOccurred())
+			payload.Object = &unstructured.Unstructured{
+				Object: unstructuredCM,
+			}
+			Expect(payload.Object.GetAnnotations()).To(BeNil())
+			n := payload.normalized()
+			Expect(n.Object.GetAnnotations()).ToNot(BeNil())
+
+			// ensure that normalized doesn't change more than it needs to
+			normalizedCm := corev1.ConfigMap{}
+			err = runtime.DefaultUnstructuredConverter.FromUnstructured(n.Object.Object, &normalizedCm)
+			Expect(err).ToNot(HaveOccurred())
+			// explicitly not comparing the TypeMeta because 1) if it got modified, FromUnstructured would
+			// have failed and 2) this is the only nested struct that gets modified by normalize()
+			reflect.DeepEqual(cm.ObjectMeta, &normalizedCm.ObjectMeta)
+			reflect.DeepEqual(cm.Data, &normalizedCm.Data)
+		})
+	})
+
 	var rem *ComplianceRemediation
 	When("parsing dependency references", func() {
 		BeforeEach(func() {

@@ -3,6 +3,7 @@ package jsondiff
 import (
 	"encoding/json"
 	"strings"
+	"unsafe"
 
 	"github.com/tidwall/gjson"
 )
@@ -20,9 +21,9 @@ const (
 )
 
 const (
-	fromFieldLen  = 10 // ,"from":""
-	valueFieldLen = 9  // ,"value":
-	opBaseLen     = 19 // {"op":"","path":""}
+	fromFieldLen  = len(`,"from":""`)
+	valueFieldLen = len(`,"value":`)
+	opBaseLen     = len(`{"op":"","path":""}`)
 )
 
 // Patch represents a series of JSON Patch operations.
@@ -46,11 +47,24 @@ func (o Operation) String() string {
 	return string(b)
 }
 
+type jsonNull struct{}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (jn jsonNull) MarshalJSON() ([]byte, error) {
+	return []byte("null"), nil
+}
+
 // MarshalJSON implements the json.Marshaler interface.
 func (o Operation) MarshalJSON() ([]byte, error) {
 	type op Operation
-	if !o.hasValue() {
+
+	if !o.marshalWithValue() {
 		o.Value = nil
+	} else {
+		// Generic check that passes for nil and type nil interface values.
+		if (*[2]uintptr)(unsafe.Pointer(&o.Value))[1] == 0 {
+			o.Value = jsonNull{}
+		}
 	}
 	if !o.hasFrom() {
 		o.From = emptyPtr
@@ -63,7 +77,7 @@ func (o Operation) MarshalJSON() ([]byte, error) {
 func (o Operation) jsonLength(targetBytes []byte) int {
 	l := opBaseLen + len(o.Type) + len(o.Path)
 
-	if o.hasValue() {
+	if o.marshalWithValue() {
 		valueLen := len(targetBytes)
 		if !o.Path.isRoot() {
 			r := gjson.GetBytes(targetBytes, o.Path.toJSONPath())
@@ -86,9 +100,9 @@ func (o Operation) hasFrom() bool {
 	}
 }
 
-func (o Operation) hasValue() bool {
+func (o Operation) marshalWithValue() bool {
 	switch o.Type {
-	case OperationCopy, OperationMove:
+	case OperationCopy, OperationMove, OperationRemove:
 		return false
 	default:
 		return true
@@ -96,10 +110,13 @@ func (o Operation) hasValue() bool {
 }
 
 // String implements the fmt.Stringer interface.
-func (p Patch) String() string {
+func (p *Patch) String() string {
+	if p == nil || len(*p) == 0 {
+		return ""
+	}
 	sb := strings.Builder{}
 
-	for i, op := range p {
+	for i, op := range *p {
 		if i != 0 {
 			sb.WriteByte('\n')
 		}
@@ -122,15 +139,18 @@ func (p *Patch) append(typ string, from, path pointer, src, tgt interface{}) Pat
 	})
 }
 
-func (p Patch) jsonLength(targetBytes []byte) int {
+func (p *Patch) jsonLength(targetBytes []byte) int {
 	length := 0
-	for _, op := range p {
+	if p == nil {
+		return length
+	}
+	for _, op := range *p {
 		length += op.jsonLength(targetBytes)
 	}
 	// Count comma-separators if the patch
 	// has more than one operation.
-	if len(p) > 1 {
-		length += len(p) - 1
+	if len(*p) > 1 {
+		length += len(*p) - 1
 	}
 	return length
 }

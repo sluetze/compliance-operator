@@ -1362,6 +1362,11 @@ func waitForGenericRemediationToBeAutoApplied(t *testing.T, f *framework.Framewo
 			return false, nil
 		}
 		E2ELogf(t, "Found remediation: %s\n", remName)
+		if rem.Status.ApplicationState == compv1alpha1.RemediationNotApplied || rem.Status.ApplicationState == compv1alpha1.RemediationPending {
+			E2ELogf(t, "Retrying. remediation not yet applied. Remediation Name: %s, ApplicationState: %s\n", remName, rem.Status.ApplicationState)
+		}
+		// wait for the remediation to get applied
+		time.Sleep(5 * time.Second)
 		return true, nil
 	})
 	assertNoErrorNorTimeout(t, lastErr, timeouterr, "getting remediation before auto-applying it")

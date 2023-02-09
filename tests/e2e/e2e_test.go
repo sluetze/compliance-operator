@@ -2332,6 +2332,76 @@ func TestE2E(t *testing.T) {
 			},
 		},
 		testExecution{
+			Name:       "TestScanSettingBindingTailoringAndNonDefaultRole",
+			IsParallel: true,
+			TestFn: func(t *testing.T, f *framework.Framework, ctx *framework.Context, mcTctx *mcTestCtx, namespace string) error {
+				mcTctx.ensureE2EPool()
+
+				tpName := "non-default-role-tp"
+				scanSettingBindingName := "non-default-role-ssb"
+
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						Title:       "TestCisForE2EPool",
+						Description: "TestCisForE2EPool",
+						Extends:     "ocp4-cis",
+						SetValues: []compv1alpha1.VariableValueSpec{
+							{
+								Name:      "ocp4-var-role-master",
+								Rationale: "targets the e2e pool",
+								Value:     "e2e",
+							},
+							{
+								Name:      "ocp4-var-role-worker",
+								Rationale: "targets the e2e pool",
+								Value:     "e2e",
+							},
+						},
+					},
+				}
+
+				createTPErr := f.Client.Create(goctx.TODO(), tp, getCleanupOpts(ctx))
+				if createTPErr != nil {
+					return createTPErr
+				}
+
+				scanSettingBinding := compv1alpha1.ScanSettingBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      scanSettingBindingName,
+						Namespace: namespace,
+					},
+					Profiles: []compv1alpha1.NamedObjectReference{
+						{
+							Name:     tpName,
+							Kind:     "TailoredProfile",
+							APIGroup: "compliance.openshift.io/v1alpha1",
+						},
+					},
+					SettingsRef: &compv1alpha1.NamedObjectReference{
+						Name:     "e2e-default",
+						Kind:     "ScanSetting",
+						APIGroup: "compliance.openshift.io/v1alpha1",
+					},
+				}
+
+				err := f.Client.Create(goctx.TODO(), &scanSettingBinding, getCleanupOpts(ctx))
+				if err != nil {
+					return err
+				}
+
+				// it's enough to check that the scan finishes
+				if err := waitForSuiteScansStatus(t, f, namespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+					return err
+				}
+
+				return nil
+			},
+		},
+		testExecution{
 			Name:       "TestScanSettingBindingUsesDefaultScanSetting",
 			IsParallel: true,
 			TestFn: func(t *testing.T, f *framework.Framework, ctx *framework.Context, mcTctx *mcTestCtx, namespace string) error {
@@ -3565,6 +3635,25 @@ func TestE2E(t *testing.T) {
 				err = assertHasCheck(f, suiteName, scanName, checkResult)
 				if err != nil {
 					return err
+				}
+
+				err = assertHasCheck(f, suiteName, scanName, checkResult)
+				if err != nil {
+					return err
+				}
+
+				// The remediation must not be Outdated
+				remediation := &compv1alpha1.ComplianceRemediation{}
+				remNsName := types.NamespacedName{
+					Name:      remName,
+					Namespace: namespace,
+				}
+				err = f.Client.Get(goctx.TODO(), remNsName, remediation)
+				if err != nil {
+					return fmt.Errorf("couldn't get remediation %s: %w", remName, err)
+				}
+				if remediation.Status.ApplicationState != compv1alpha1.RemediationApplied {
+					return fmt.Errorf("remediation %s is not applied, but %s", remName, remediation.Status.ApplicationState)
 				}
 
 				E2ELogf(t, "The test succeeded!")
