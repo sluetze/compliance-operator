@@ -71,7 +71,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Namespace: common.GetComplianceOperatorNamespace(),
 			},
 			Spec: compv1alpha1.ProfileBundleSpec{
-				ContentImage: "quay.io/compliance-operator/compliance-operator-content:latest",
+				ContentImage: "ghcr.io/complianceascode/k8scontent:latest",
 				ContentFile:  "ssg-rhcos4-ds.xml",
 			},
 			Status: compv1alpha1.ProfileBundleStatus{
@@ -85,7 +85,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Namespace: common.GetComplianceOperatorNamespace(),
 			},
 			Spec: compv1alpha1.ProfileBundleSpec{
-				ContentImage: "quay.io/compliance-operator/compliance-operator-content:latest",
+				ContentImage: "ghcr.io/complianceascode/k8scontent:latest",
 				ContentFile:  "ssg-ocp4-ds.xml",
 			},
 			Status: compv1alpha1.ProfileBundleStatus{

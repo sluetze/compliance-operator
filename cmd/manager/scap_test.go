@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/common"
@@ -169,6 +168,37 @@ var _ = Describe("Testing SCAP parsing and storage", func() {
 
 			dataStreamFile.Close()
 		})
+
+		Context("Parsing SCAP Content with suppressed warning", func() {
+			var dataStreamFile *os.File
+			var contentDS *xmlquery.Node
+
+			BeforeEach(func() {
+				var err error
+				dataStreamFile, err = os.Open("../../tests/data/ssg-ocp4-ds-suppressed.xml")
+				Expect(err).To(BeNil())
+			})
+			AfterEach(func() {
+				dataStreamFile.Close()
+			})
+
+			It("Gets the appropriate resource URIs", func() {
+				By("parsing content without errors")
+				var err error
+				contentDS, err = parseContent(dataStreamFile)
+				Expect(err).To(BeNil())
+
+				By("parsing content for warnings")
+				expectedItem := utils.ResourcePath{
+					ObjPath:         "/apis/hypershift.openshift.io/v1beta1/namespaces/clusters/hostedclusters/None",
+					DumpPath:        "/hypershift/version",
+					Filter:          "[.status.version.history[].version]",
+					SuppressWarning: true,
+				}
+				got, _ := getResourcePaths(contentDS, contentDS, "xccdf_org.ssgproject.content_profile_cis", nil)
+				Expect(got).To(ContainElement(expectedItem))
+			})
+		})
 	})
 
 	Context("Parses the save path appropriately", func() {
@@ -217,7 +247,7 @@ var _ = Describe("Testing filtering", func() {
 			nsFile, err := os.Open("../../tests/data/namespaces.json")
 			Expect(err).To(BeNil())
 			var readErr error
-			rawns, readErr = ioutil.ReadAll(nsFile)
+			rawns, readErr = io.ReadAll(nsFile)
 			Expect(readErr).To(BeNil())
 		})
 		It("filters namespaces appropriately", func() {
@@ -228,6 +258,42 @@ var _ = Describe("Testing filtering", func() {
 			unmErr := json.Unmarshal(filteredOut, &nsArr)
 			Expect(unmErr).To(BeNil())
 			Expect(nsArr).To(HaveLen(2))
+		})
+	})
+
+	Context("Filtering configmaps yaml data", func() {
+		var rawcm []byte
+		expectedYAML := `{"admission":{},"aggregatorConfig":{"allowedNames":null,"clientCA":"","extraHeaderPrefixes":null,"groupHeaders":null,"usernameHeaders":null},"apiServerArguments":{"audit-log-format":["json"],"audit-log-maxsize":["100"],"audit-log-path":["/var/log/openshift-apiserver/audit.log"],"audit-policy-file":["/etc/kubernetes/audit-config/policy.yaml"],"shutdown-delay-duration":["3s"]},"apiVersion":"openshiftcontrolplane.config.openshift.io/v1","auditConfig":{"auditFilePath":"","enabled":false,"logFormat":"","maximumFileRetentionDays":0,"maximumFileSizeMegabytes":0,"maximumRetainedFiles":0,"policyConfiguration":null,"policyFile":"","webHookKubeConfig":"","webHookMode":""},"cloudProviderFile":"","corsAllowedOrigins":null,"imagePolicyConfig":{"additionalTrustedCA":"","allowedRegistriesForImport":null,"externalRegistryHostnames":null,"internalRegistryHostname":"image-registry.openshift-image-registry.svc:5000","maxImagesBulkImportedPerRepository":0},"jenkinsPipelineConfig":{"autoProvisionEnabled":null,"parameters":null,"serviceName":"","templateName":"","templateNamespace":""},"kind":"OpenShiftAPIServerConfig","kubeClientConfig":{"connectionOverrides":{"acceptContentTypes":"","burst":0,"contentType":"","qps":0},"kubeConfig":"/etc/kubernetes/secrets/svc-kubeconfig/kubeconfig"},"projectConfig":{"defaultNodeSelector":"","projectRequestMessage":"","projectRequestTemplate":""},"routingConfig":{"subdomain":"apps.wenshen-hypershift.devcluster.openshift.com"},"serviceAccountOAuthGrantMethod":"","servingInfo":{"bindAddress":"","bindNetwork":"","certFile":"/etc/kubernetes/certs/serving/tls.crt","cipherSuites":["TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256","TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256","TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384","TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384","TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256","TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"],"clientCA":"/etc/kubernetes/certs/client-ca/ca.crt","keyFile":"/etc/kubernetes/certs/serving/tls.key","maxRequestsInFlight":0,"minTLSVersion":"VersionTLS12","requestTimeoutSeconds":0},"storageConfig":{"ca":"/etc/kubernetes/certs/etcd-client-ca/ca.crt","certFile":"/etc/kubernetes/certs/etcd-client/etcd-client.crt","keyFile":"/etc/kubernetes/certs/etcd-client/etcd-client.key","storagePrefix":"","urls":["https://etcd-client:2379"]}}`
+		BeforeEach(func() {
+			cmFile, err := os.Open("../../tests/data/configmap_yaml.json")
+			Expect(err).To(BeNil())
+			var readErr error
+			rawcm, readErr = io.ReadAll(cmFile)
+			Expect(readErr).To(BeNil())
+		})
+		It("filters configmaps YAML data appropriately", func() {
+			filteredOut, filterErr := filter(context.TODO(), rawcm,
+				`.data["config.yaml"]`)
+			Expect(filterErr).To(BeNil())
+			Expect(string(filteredOut)).To(Equal(expectedYAML))
+		})
+	})
+
+	Context("Filtering configmaps json data", func() {
+		var rawcm []byte
+		expectedJSON := `{"apiServerArguments":{"audit-log-format":["json"],"audit-log-maxbackup":["10"],"audit-log-maxsize":["100"],"audit-log-path":["/var/log/openshift-apiserver/audit.log"],"audit-policy-file":["/var/run/configmaps/audit/policy.yaml"],"shutdown-delay-duration":["15s"],"shutdown-send-retry-after":["true"]},"apiVersion":"openshiftcontrolplane.config.openshift.io/v1","imagePolicyConfig":{"internalRegistryHostname":"image-registry.openshift-image-registry.svc:5000"},"kind":"OpenShiftAPIServerConfig","projectConfig":{"projectRequestMessage":""},"routingConfig":{"subdomain":"apps.ci-ln-xllhdgb-76ef8.origin-ci-int-aws.dev.rhcloud.com"},"servingInfo":{"bindNetwork":"tcp","cipherSuites":["TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256","TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256","TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384","TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384","TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256","TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"],"minTLSVersion":"VersionTLS12"},"storageConfig":{"urls":["https://10.0.137.27:2379","https://10.0.158.132:2379","https://10.0.204.8:2379"]}}`
+		BeforeEach(func() {
+			cmFile, err := os.Open("../../tests/data/configmap_json.json")
+			Expect(err).To(BeNil())
+			var readErr error
+			rawcm, readErr = io.ReadAll(cmFile)
+			Expect(readErr).To(BeNil())
+		})
+		It("filters configmaps JSON data appropriately", func() {
+			filteredOut, filterErr := filter(context.TODO(), rawcm,
+				`.data["config.yaml"] | fromjson`)
+			Expect(filterErr).To(BeNil())
+			Expect(string(filteredOut)).To(Equal(expectedJSON))
 		})
 	})
 
@@ -243,7 +309,7 @@ var _ = Describe("Testing filtering", func() {
 				nsFile, err := os.Open("../../tests/data/namespaces.json")
 				Expect(err).To(BeNil())
 				var readErr error
-				rawns, readErr = ioutil.ReadAll(nsFile)
+				rawns, readErr = io.ReadAll(nsFile)
 				Expect(readErr).To(BeNil())
 			})
 
@@ -290,6 +356,24 @@ var _ = Describe("Testing fetching", func() {
 			Expect(string(files["key"])).To(Equal("# kube-api-error=NotFound"))
 			Expect(warnings).To(HaveLen(1))
 			Expect(warnings[0]).To(Equal("could not fetch : some resource.some group \"some name\" not found"))
+		})
+	})
+
+	Context("handle fetch failures with suppressed warning", func() {
+		It("fetches and discard 404s", func() {
+			fakeDispatcher := func(uri string) resourceStreamer {
+				return &notFoundFetcher{}
+			}
+
+			files, warnings, err := fetch(context.TODO(),
+				fakeDispatcher,
+				resourceFetcherClients{},
+				[]utils.ResourcePath{{DumpPath: "key", SuppressWarning: true}})
+
+			Expect(err).To(BeNil())
+			Expect(files).To(HaveLen(1))
+			Expect(string(files["key"])).To(Equal("# kube-api-error=NotFound"))
+			Expect(warnings).To(HaveLen(0))
 		})
 	})
 	Context("handle Machine Config fetching", func() {

@@ -16,7 +16,7 @@ limitations under the License.
 package manager
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"path"
 	"time"
@@ -41,7 +41,7 @@ var _ = Describe("Resultserver testing", func() {
 
 		BeforeEach(func() {
 			var err error
-			rootDir, err = ioutil.TempDir("", "rotate-root")
+			rootDir, err = os.MkdirTemp("", "rotate-root")
 			Expect(err).To(BeNil())
 
 			// Ensure lost+found
@@ -49,23 +49,23 @@ var _ = Describe("Resultserver testing", func() {
 			os.Mkdir(lostFoundDir, 0644)
 
 			// Create temporary directories which represent what will be rotated
-			dir1, err = ioutil.TempDir(rootDir, "rotate-1")
+			dir1, err = os.MkdirTemp(rootDir, "rotate-1")
 			Expect(err).To(BeNil())
-			ioutil.TempFile(dir1, "foo")
-			fileToBeRead, err := ioutil.TempFile(dir1, "bar")
+			os.CreateTemp(dir1, "foo")
+			fileToBeRead, err := os.CreateTemp(dir1, "bar")
 			Expect(err).To(BeNil())
-			ioutil.TempFile(dir1, "baz")
+			os.CreateTemp(dir1, "baz")
 
 			// Ensure next directory will have significant time difference
 			time.Sleep(100 * time.Millisecond)
-			dir2, err = ioutil.TempDir(rootDir, "rotate-2")
+			dir2, err = os.MkdirTemp(rootDir, "rotate-2")
 			Expect(err).To(BeNil())
-			ioutil.TempFile(dir2, "foo")
-			ioutil.TempFile(dir2, "bar")
+			os.CreateTemp(dir2, "foo")
+			os.CreateTemp(dir2, "bar")
 
 			// Ensure next directory will have significant time difference
 			time.Sleep(100 * time.Millisecond)
-			dir3, err = ioutil.TempDir(rootDir, "rotate-3")
+			dir3, err = os.MkdirTemp(rootDir, "rotate-3")
 			Expect(err).To(BeNil())
 
 			// chmod the dirs in reverse order to make sure we are really relying on
@@ -81,7 +81,7 @@ var _ = Describe("Resultserver testing", func() {
 			Expect(err).To(BeNil())
 
 			// Read a file to ensure that hierarchy doesn't change
-			_, err = ioutil.ReadAll(fileToBeRead)
+			_, err = io.ReadAll(fileToBeRead)
 			Expect(err).To(BeNil())
 		})
 

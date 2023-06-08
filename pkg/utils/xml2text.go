@@ -52,7 +52,8 @@ func xmlToHtml(in string, preRender bool, needsSpace bool) string {
 					builder.WriteString(formatElement(tok.Name, "<"))
 				}
 			} else {
-				builder.WriteString(formatElement(tok.Name, "<"))
+				// This is a special case so that we can look for links in <a> tags.
+				builder.WriteString(formatStartElement(tok))
 			}
 		case xml.EndElement:
 			builder.WriteString(formatElement(tok.Name, "</"))
@@ -87,6 +88,19 @@ func formatElement(elName xml.Name, tag string) string {
 		if elName.Local == "pre" && tag == "</" {
 			t += tag + "p>"
 		}
+	}
+
+	return t
+}
+
+func formatStartElement(e xml.StartElement) string {
+	t := formatElement(e.Name, "<")
+
+	if t == "<a>" {
+		// find the link
+		h := e.Attr[0].Name.Local
+		l := e.Attr[0].Value
+		t = "<" + e.Name.Local + " " + h + "=" + "\"" + l + "\"" + ">"
 	}
 	return t
 }

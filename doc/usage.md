@@ -404,10 +404,10 @@ including advanced topics such as content building.
 ## Must-gather support
 
 An `oc adm must-gather` image for collecting operator information for debugging
-or support is available at `quay.io/compliance-operator/must-gather:latest`:
+or support is available at `ghcr.io/complianceascode/compliance-operator-must-gather:latest`:
 
 ```
-$ oc adm must-gather --image=quay.io/compliance-operator/must-gather:latest
+$ oc adm must-gather --image=ghcr.io/complianceascode/compliance-operator-must-gather:latest
 ```
 
 ## Metrics
@@ -425,7 +425,7 @@ The compliance-operator exposes the following metrics to Prometheus when cluster
     compliance_operator_compliance_scan_status_total{name="scan-name",phase="AGGREGATING",result="NOT-AVAILABLE"} 1
 
     # HELP compliance_operator_compliance_scan_error_total A counter for the
-    # total number of encounters of error
+    # total number errors
     # TYPE compliance_operator_compliance_scan_error_total counter
     compliance_operator_compliance_scan_error_total{name="scan-name",error="some_error"} 1
 
@@ -570,3 +570,85 @@ if it is longer than timeout, we will terminate the scan or retry.
 
 A timeout scan will send a warning on retries, and the scan will have an
 error result.
+
+## How to Use Compliance Operator with HyperShift Management Cluster
+
+Compliance Operator is able to run a platform scan on the HyperShift Managment cluster
+for the Hosted Cluster with a tailoredProfile.
+
+Currently, we only support CIS profile and PCI-DSS profile, in order to scan Hosted
+Cluster, you need to create a tailoredProfile and then set the value of
+`ocp4-hypershift-cluster` to the name of the Hosted Cluster you want to scan,
+you can either extend `ocp4-cis` or `ocp4-pci-dss`.
+
+```yaml
+apiVersion: compliance.openshift.io/v1alpha1
+kind: TailoredProfile
+metadata:
+ name: cis-compliance-hypershift
+ namespace: openshift-compliance
+ annotations:
+   compliance.openshift.io/product-type: Platform
+spec:
+ title: CIS Benchmark for Hypershift
+ description: CIS Benchmark for Hypershift Master-plane components
+ extends: ocp4-cis
+ setValues:
+   - name: ocp4-hypershift-cluster
+     value: "<hypershift-hosted-cluster-name>"
+     rationale: This value is used for HyperShift version detection
+```
+
+And after you save the edit, you can then apply the edited `tailoredProfile`,
+and create a `ScanSettingBinding` to run the scan:
+
+```yaml
+apiVersion: compliance.openshift.io/v1alpha1
+kind: ScanSettingBinding
+metadata:
+ name: cis-compliance-hypershift
+ namespace: openshift-compliance
+profiles:
+ - name: cis-compliance-hypershift
+   kind: TailoredProfile
+   apiGroup: compliance.openshift.io/v1alpha1
+settingsRef:
+ name: default
+ kind: ScanSetting
+ apiGroup: compliance.openshift.io/v1alpha1
+ ```
+
+## How to Use Compliance Operator with HyperShift Hosted Cluster
+
+Compliance Operator is able to run a platform scan on the HyperShift Hosted cluster
+without any tailoredProfile. Any unsupport rules will be hidden from the `ComplianceCheckResult`.
+
+However, you need to use a special subscription file to install Compliance Operator on the
+Hosted Cluster from the OperatorHub. You can either add `spec.config` section from the following
+example to the existing subscription object, or use the following subscription file directly:
+
+```yaml
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: compliance-operator-
+  namespace: openshift-compliance
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: compliance-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: compliance-operator.v1.0.0
+  config:
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    env: 
+    - name: PLATFORM
+      value: "HyperShift"
+```
+
+To install Compliance Operator on the Hosted Cluster from upstream using OLM, you can run the following command:
+
+`make catalog-deploy PLATFORM=HyperShift`
+

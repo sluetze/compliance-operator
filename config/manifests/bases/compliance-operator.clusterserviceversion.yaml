@@ -160,13 +160,13 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    olm.skipRange: '>=0.1.17 <0.1.61'
+    olm.skipRange: '>=0.1.17 <1.1.0'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-compliance
     operators.openshift.io/infrastructure-features: '["disconnected", "fips", "proxy-aware"]'
     operators.openshift.io/valid-subscription: '["OpenShift Kubernetes Engine", "OpenShift
       Container Platform", "OpenShift Platform Plus"]'
-    repository: https://github.com/openshift/compliance-operator
+    repository: https://github.com/ComplianceAsCode/compliance-operator
     support: Red Hat Inc.
   labels:
     operatorframework.io/arch.amd64: supported
@@ -1224,12 +1224,12 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
                 - name: RELATED_IMAGE_OPENSCAP
-                  value: quay.io/compliance-operator/openscap-ocp:1.3.5
+                  value: ghcr.io/complianceascode/openscap-ocp:latest
                 - name: RELATED_IMAGE_OPERATOR
-                  value: quay.io/compliance-operator/compliance-operator:0.1.53
+                  value: ghcr.io/complianceascode/compliance-operator:latest
                 - name: RELATED_IMAGE_PROFILE
                   value: ghcr.io/complianceascode/k8scontent:latest
-                image: quay.io/compliance-operator/compliance-operator:0.1.53
+                image: ghcr.io/complianceascode/compliance-operator:latest
                 imagePullPolicy: Always
                 name: compliance-operator
                 resources:
@@ -1546,8 +1546,8 @@ spec:
   - openscap
   - audit
   links:
-  - name: Compliance Operator upstream repo
-    url: https://github.com/openshift/compliance-operator
+  - name: Compliance Operator upstream repository
+    url: https://github.com/ComplianceAsCode/compliance-operator
   - name: Compliance Operator documentation
     url: https://docs.openshift.com/container-platform/latest/security/compliance_operator/compliance-operator-understanding.html
   maintainers:

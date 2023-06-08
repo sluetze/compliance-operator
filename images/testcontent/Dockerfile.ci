@@ -1,1 +1,1 @@
-FROM quay.io/compliance-operator/compliance-operator-content:latest
+FROM ghcr.io/complianceascode/k8scontent:latest

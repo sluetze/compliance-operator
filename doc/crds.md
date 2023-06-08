@@ -42,7 +42,7 @@ An example `ProfileBundle` object looks like this:
     namespace: openshift-compliance
   spec:
     contentFile: ssg-ocp4-ds.xml
-    contentImage: quay.io/compliance-operator/compliance-operator-content:latest
+    contentImage: ghcr.io/complianceascode/k8scontent:latest
   status:
     dataStreamStatus: VALID
 ```
@@ -57,7 +57,7 @@ Where:
 * **status.errorMessage**: In case parsing of the content files fails, this
   attribute will contain a human-readable explanation.
 
-The ComplianceAsCode upstream image is located at `quay.io/compliance-operator/compliance-operator-content:latest`.
+The ComplianceAsCode upstream image is located at `ghcr.io/complianceascode/k8scontent:latest`.
 For OCP4, the two most used `contentFile` values would be `ssg-ocp4-ds.xml` which contain
 the platform (Kubernetes) checks and `ssg-rhcos4-ds.xml` file which contains the node
 (OS level) checks. For these two files, the corresponding `ProfileBundle` objects are created
@@ -480,7 +480,7 @@ spec:
       scanType: Node
       profile: xccdf_org.ssgproject.content_profile_moderate
       content: ssg-rhcos4-ds.xml
-      contentImage: quay.io/compliance-operator/compliance-operator-content:latest
+      contentImage: ghcr.io/complianceascode/k8scontent:latest
       rule: "xccdf_org.ssgproject.content_rule_no_netrc_files"
       nodeSelector:
         node-role.kubernetes.io/worker: ""
@@ -551,7 +551,7 @@ spec:
   scanType: Node
   profile: xccdf_org.ssgproject.content_profile_moderate
   content: ssg-ocp4-ds.xml
-  contentImage: quay.io/compliance-operator/compliance-operator-content:latest
+  contentImage: ghcr.io/complianceascode/k8scontent:latest
   rule: "xccdf_org.ssgproject.content_rule_no_netrc_files"
   nodeSelector:
     node-role.kubernetes.io/worker: ""

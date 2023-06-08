@@ -7,7 +7,8 @@ import (
 
 var _ = Describe("XML conversions", func() {
 	const (
-		validXml = `System running in FIPS mode is indicated by kernel parameter<html:code>&#39;crypto.fips_enabled&#39;</html:code>. This parameter should be set to<html:code>1</html:code>in FIPS mode.&#xA;To enable FIPS mode, run the following command:<html:pre>fips-mode-setup --enable</html:pre>`
+		validXml         = `System running in FIPS mode is indicated by kernel parameter<html:code>&#39;crypto.fips_enabled&#39;</html:code>. This parameter should be set to<html:code>1</html:code>in FIPS mode.&#xA;To enable FIPS mode, run the following command:<html:pre>fips-mode-setup --enable</html:pre>`
+		validXmlWithLink = `User access to the cluster is managed through the identity provider. <html:a href="https://docs.openshift.com/container-platform/latest/authentication/understanding-identity-provider.html">Understanding identity provider configuration | Authentication | OpenShift Container Platform</html:a>`
 	)
 
 	Context("XML to markdown", func() {
@@ -20,6 +21,14 @@ var _ = Describe("XML conversions", func() {
 
 		It("Should handle empty input", func() {
 			Expect(xmlToMarkdown("", false, false)).To(Equal(""))
+		})
+
+		It("Should perserve links", func() {
+			const (
+				text = "User access to the cluster is managed through the identity provider. Understanding identity provider configuration | Authentication | OpenShift Container Platform ( https://docs.openshift.com/container-platform/latest/authentication/understanding-identity-provider.html )"
+			)
+			Expect(xmlToMarkdown(validXmlWithLink, false, false)).To(Equal(text))
+
 		})
 
 	})

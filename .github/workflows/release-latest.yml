@@ -2,12 +2,11 @@ name: Release latest
 
 on:
   push:
-    branches:
-      - main
+    branches: [ 'master' ]
 
 jobs:
   # Push to latest
-  container-push-latest:
+  operator-container-push-latest:
     uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
     with:
       name: compliance-operator
@@ -15,3 +14,90 @@ jobs:
       tag: latest
       dockerfile_path: build/Dockerfile
       vendor: 'Compliance Operator Authors'
+  
+  bundle-container-push-latest:
+    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
+    with:
+      name: compliance-operator-bundle
+      registry_org: complianceascode
+      tag: latest
+      dockerfile_path: bundle.Dockerfile
+      vendor: 'Compliance Operator Authors'
+  
+  openscap-container-push-latest:
+    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
+    with:
+      name: openscap-ocp
+      registry_org: complianceascode
+      tag: latest
+      dockerfile_path: images/openscap/Dockerfile
+      vendor: 'Compliance Operator Authors'
+
+  catalog-container-push-latest:
+    runs-on: ubuntu-latest
+    needs: bundle-container-push-latest
+    if: always() # remove this after we fix signing
+
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      image-digest: ${{ steps.container_info.outputs.image-digest }}
+      image-tags: ${{ steps.container_info.outputs.image-tags }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.2
+
+      - name: Login to ghcr.io
+        uses: docker/login-action@v2.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/complianceascode/compliance-operator-catalog
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+            type=raw,value=latest,enable=true
+          labels: |
+            org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}
+            org.opencontainers.image.title=compliance-operator-catalog
+            org.opencontainers.image.version=latest
+            org.opencontainers.image.licenses='Apache-2.0'
+            org.opencontainers.image.vendor='Compliance Operator Authors'
+        
+      - name: Generate catalog dockerfile
+        id: generate_catalog_dockerfile
+        run: |
+          make catalog-docker BUNDLE_IMGS=ghcr.io/complianceascode/compliance-operator-bundle:latest
+
+      - name: Build container images and push
+        id: docker_build
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: catalog.Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          platforms: 'linux/amd64'
+
+      - name: Get container info
+        id: container_info
+        run: |
+          image_tags="latest,sha-$(git rev-parse HEAD)"
+          echo "::set-output name=image-digest::${{ steps.docker_build.outputs.digest }}"
+          echo "::set-output name=image-tags::${image_tags}"

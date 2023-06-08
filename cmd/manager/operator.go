@@ -5,15 +5,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"reflect"
+	goruntime "runtime"
+	"strings"
+
 	"github.com/go-logr/logr"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap/zapcore"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"os"
-	"reflect"
-	goruntime "runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -73,10 +74,11 @@ func init() {
 type PlatformType string
 
 const (
-	PlatformOpenShift PlatformType = "OpenShift"
-	PlatformEKS       PlatformType = "EKS"
-	PlatformGeneric   PlatformType = "Generic"
-	PlatformUnknown   PlatformType = "Unknown"
+	PlatformOpenShift  PlatformType = "OpenShift"
+	PlatformEKS        PlatformType = "EKS"
+	PlatformGeneric    PlatformType = "Generic"
+	PlatformHyperShift PlatformType = "HyperShift"
+	PlatformUnknown    PlatformType = "Unknown"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -96,6 +98,10 @@ var (
 		PlatformEKS: {
 			"eks",
 		},
+		PlatformHyperShift: {
+			"rhcos4",
+			"ocp4",
+		},
 	}
 	defaultRolesPerPlatform = map[PlatformType][]string{
 		PlatformOpenShift: {
@@ -104,6 +110,9 @@ var (
 		},
 		PlatformGeneric: {
 			compv1alpha1.AllRoles,
+		},
+		PlatformHyperShift: {
+			"worker",
 		},
 	}
 	serviceMonitorBearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -284,7 +293,12 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		setupLog.Error(err, "")
 		os.Exit(1)
 	}
-	pflag, _ := flags.GetString("platform")
+	// We need to set PLATFORM env var if the PLATFORM flag is set
+	pflag := os.Getenv("PLATFORM")
+	if pflag == "" {
+		pflag, _ = flags.GetString("platform")
+		os.Setenv("PLATFORM", pflag)
+	}
 	platform := getValidPlatform(pflag)
 
 	skipMetrics, _ := flags.GetBool("skip-metrics")
@@ -319,6 +333,11 @@ func getValidPlatform(p string) PlatformType {
 		return PlatformOpenShift
 	case strings.EqualFold(p, string(PlatformEKS)):
 		return PlatformEKS
+	case strings.EqualFold(p, string(PlatformHyperShift)):
+		return PlatformHyperShift
+	case strings.EqualFold(p, string(PlatformGeneric)):
+		return PlatformGeneric
+
 	default:
 		return PlatformUnknown
 	}

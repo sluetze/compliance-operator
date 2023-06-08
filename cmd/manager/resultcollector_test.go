@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -13,11 +12,11 @@ var _ = Describe("Resultcollector", func() {
 	Context("Testing result file is waited for", func() {
 		var fileName string
 		writeResult := func(fName string) {
-			err := ioutil.WriteFile(fName, []byte("1"), 0644)
+			err := os.WriteFile(fName, []byte("1"), 0644)
 			Expect(err).To(BeNil())
 		}
 		BeforeEach(func() {
-			f, err := ioutil.TempFile("", "result")
+			f, err := os.CreateTemp("", "result")
 			defer f.Close()
 			Expect(err).To(BeNil())
 			fileName = f.Name()

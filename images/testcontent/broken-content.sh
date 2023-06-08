@@ -3,6 +3,8 @@
 BUILD_PATH=images/testcontent
 DOCKERFILE=${BUILD_PATH}/broken-content.Dockerfile
 
+## Please note that you also need to update the list of tags in the
+## github workflow file .github/workflows/test-broken-content-latest.yaml
 declare -a tags=(
     'unexistent_resource'
     'proff_diff_baseline'

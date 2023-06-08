@@ -1,23 +1,18 @@
 package framework
 
 import (
-	"bytes"
 	goctx "context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/pborman/uuid"
 	extscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -26,7 +21,6 @@ import (
 	cgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/tools/clientcmd"
 	dynclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -69,25 +63,25 @@ type Framework struct {
 
 	restMapper *restmapper.DeferredDiscoveryRESTMapper
 
-	projectRoot        string
-	globalManPath      string
-	localOperatorArgs  string
-	kubeconfigPath     string
-	testType           string
-	schemeMutex        sync.Mutex
-	LocalOperator      bool
-	skipCleanupOnError bool
+	projectRoot       string
+	globalManPath     string
+	localOperatorArgs string
+	kubeconfigPath    string
+	testType          string
+	schemeMutex       sync.Mutex
+	LocalOperator     bool
+	cleanupOnError    bool
 }
 
 type frameworkOpts struct {
-	projectRoot        string
-	kubeconfigPath     string
-	globalManPath      string
-	namespacedManPath  string
-	localOperatorArgs  string
-	testType           string
-	isLocalOperator    bool
-	skipCleanupOnError bool
+	projectRoot       string
+	kubeconfigPath    string
+	globalManPath     string
+	namespacedManPath string
+	localOperatorArgs string
+	testType          string
+	isLocalOperator   bool
+	cleanupOnError    bool
 }
 
 const (
@@ -97,14 +91,14 @@ const (
 )
 
 const (
-	ProjRootFlag           = "root"
-	KubeConfigFlag         = "kubeconfig"
-	NamespacedManPathFlag  = "namespacedMan"
-	GlobalManPathFlag      = "globalMan"
-	LocalOperatorFlag      = "localOperator"
-	LocalOperatorArgs      = "localOperatorArgs"
-	SkipCleanupOnErrorFlag = "skipCleanupOnError"
-	TestTypeFlag           = "testType"
+	ProjRootFlag          = "root"
+	KubeConfigFlag        = "kubeconfig"
+	NamespacedManPathFlag = "namespacedMan"
+	GlobalManPathFlag     = "globalMan"
+	LocalOperatorFlag     = "localOperator"
+	LocalOperatorArgs     = "localOperatorArgs"
+	CleanupOnErrorFlag    = "cleanupOnError"
+	TestTypeFlag          = "testType"
 
 	TestOperatorNamespaceEnv = "TEST_OPERATOR_NAMESPACE"
 	TestWatchNamespaceEnv    = "TEST_WATCH_NAMESPACE"
@@ -118,23 +112,27 @@ func (opts *frameworkOpts) addToFlagSet(flagset *flag.FlagSet) {
 	flagset.StringVar(&opts.globalManPath, GlobalManPathFlag, "", "path to operator manifest")
 	flagset.StringVar(&opts.localOperatorArgs, LocalOperatorArgs, "",
 		"flags that the operator needs (while using --up-local). example: \"--flag1 value1 --flag2=value2\"")
-	flagset.BoolVar(&opts.skipCleanupOnError, SkipCleanupOnErrorFlag, false,
-		"If set as true, the cleanup function responsible to remove all artifacts "+
-			"will be skipped if an error is faced.")
+	flagset.BoolVar(&opts.cleanupOnError, CleanupOnErrorFlag, false,
+		"If set to true, the test runner will attempt to cleanup all test resources "+
+			"if the test failed. By default, test resources are not cleaned up "+
+			"after failed tests to help debug test issues. This option has no effect on successful test runs, "+
+			"in which case test resources are automatically cleaned up.")
 	flagset.StringVar(&opts.testType, TestTypeFlag, TestTypeAll,
 		"Defines the type of tests to run. (Options: all, serial, parallel)")
 }
 
 func newFramework(opts *frameworkOpts) (*Framework, error) {
-	kubeconfig, kcNamespace, err := GetKubeconfigAndNamespace(opts.kubeconfigPath)
+	kubeconfig, _, err := GetKubeconfigAndNamespace(opts.kubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build the kubeconfig: %w", err)
 	}
 
-	operatorNamespace := kcNamespace
+	var operatorNamespace string
 	ns, ok := os.LookupEnv(TestOperatorNamespaceEnv)
 	if ok && ns != "" {
 		operatorNamespace = ns
+	} else {
+		operatorNamespace = "osdk-e2e-" + uuid.New()
 	}
 
 	kubeclient, err := kubernetes.NewForConfig(kubeconfig)
@@ -167,13 +165,13 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 		OperatorNamespace: operatorNamespace,
 		LocalOperator:     opts.isLocalOperator,
 
-		projectRoot:        opts.projectRoot,
-		globalManPath:      opts.globalManPath,
-		localOperatorArgs:  opts.localOperatorArgs,
-		kubeconfigPath:     opts.kubeconfigPath,
-		restMapper:         restMapper,
-		skipCleanupOnError: opts.skipCleanupOnError,
-		testType:           opts.testType,
+		projectRoot:       opts.projectRoot,
+		globalManPath:     opts.globalManPath,
+		localOperatorArgs: opts.localOperatorArgs,
+		kubeconfigPath:    opts.kubeconfigPath,
+		restMapper:        restMapper,
+		cleanupOnError:    opts.cleanupOnError,
+		testType:          opts.testType,
 	}
 	return framework, nil
 }
@@ -226,89 +224,4 @@ func (f *Framework) addToScheme(addToScheme addToSchemeFunc, obj dynclient.Objec
 	return nil
 }
 
-func (f *Framework) runM(m *testing.M) (int, error) {
-	// setup context to use when setting up crd
-	ctx := f.newContext(nil)
-	defer ctx.Cleanup()
 
-	// go test always runs from the test directory; change to project root
-	err := os.Chdir(f.projectRoot)
-	if err != nil {
-		return 0, fmt.Errorf("failed to change directory to project root: %w", err)
-	}
-
-	// create crd
-	globalYAML, err := ioutil.ReadFile(f.globalManPath)
-	if err != nil {
-		return 0, fmt.Errorf("failed to read global resource manifest: %w", err)
-	}
-	err = ctx.createFromYAML(globalYAML, true, &CleanupOptions{TestContext: ctx})
-	if err != nil {
-		return 0, fmt.Errorf("failed to create resource(s) in global resource manifest: %w", err)
-	}
-
-	if !f.LocalOperator {
-		return m.Run(), nil
-	}
-
-	// start local operator before running tests
-	outBuf := &bytes.Buffer{}
-	localCmd, err := f.setupLocalCommand()
-	if err != nil {
-		return 0, fmt.Errorf("failed to setup local command: %w", err)
-	}
-	localCmd.Stdout = outBuf
-	localCmd.Stderr = outBuf
-
-	err = localCmd.Start()
-	if err != nil {
-		return 0, fmt.Errorf("failed to run operator locally: %w", err)
-	}
-	log.Info("Started local operator")
-
-	// run the tests
-	exitCode := m.Run()
-
-	// kill the local operator and print its logs
-	err = localCmd.Process.Kill()
-	if err != nil {
-		log.Warn("Failed to stop local operator process")
-	}
-	fmt.Printf("\n------ Local operator output ------\n%s\n", outBuf.String())
-	return exitCode, nil
-}
-
-func (f *Framework) setupLocalCommand() (*exec.Cmd, error) {
-	projectName := filepath.Base(MustGetwd())
-	outputBinName := filepath.Join(BuildBinDir, projectName+"-local")
-	opts := GoCmdOptions{
-		BinName:     outputBinName,
-		PackagePath: filepath.Join(GetGoPkg(), filepath.ToSlash(ManagerDir)),
-	}
-	if err := GoBuild(opts); err != nil {
-		return nil, fmt.Errorf("failed to build local operator binary: %w", err)
-	}
-
-	args := []string{}
-	if f.localOperatorArgs != "" {
-		args = append(args, strings.Split(f.localOperatorArgs, " ")...)
-	}
-
-	localCmd := exec.Command(outputBinName, args...)
-
-	if f.kubeconfigPath != "" {
-		localCmd.Env = append(os.Environ(), fmt.Sprintf("%v=%v", KubeConfigEnvVar, f.kubeconfigPath))
-	} else {
-		// we can hardcode index 0 as that is the highest priority kubeconfig to be loaded and will always
-		// be populated by NewDefaultClientConfigLoadingRules()
-		localCmd.Env = append(os.Environ(), fmt.Sprintf("%v=%v", KubeConfigEnvVar,
-			clientcmd.NewDefaultClientConfigLoadingRules().Precedence[0]))
-	}
-	watchNamespace := f.OperatorNamespace
-	ns, ok := os.LookupEnv(TestWatchNamespaceEnv)
-	if ok {
-		watchNamespace = ns
-	}
-	localCmd.Env = append(localCmd.Env, fmt.Sprintf("%v=%v", WatchNamespaceEnvVar, watchNamespace))
-	return localCmd, nil
-}

@@ -65,9 +65,9 @@ func DefaultControllerMetrics() *ControllerMetrics {
 			prometheus.CounterOpts{
 				Name:      metricNameComplianceScanError,
 				Namespace: metricNamespace,
-				Help:      "A counter for the total number of encounters of error",
+				Help:      "A counter for the total number of errors for a particular scan",
 			},
-			[]string{metricLabelScanName, metricLabelScanError},
+			[]string{metricLabelScanName},
 		),
 		metricComplianceScanStatus: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -164,8 +164,7 @@ func (m *Metrics) IncComplianceScanStatus(name string, status v1alpha1.Complianc
 	}).Inc()
 	if len(status.ErrorMessage) > 0 {
 		m.metrics.metricComplianceScanError.With(prometheus.Labels{
-			metricLabelScanName:  name,
-			metricLabelScanError: status.ErrorMessage,
+			metricLabelScanName: name,
 		}).Inc()
 	}
 }

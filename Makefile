@@ -4,10 +4,11 @@ include version.Makefile
 # ==================
 export APP_NAME=compliance-operator
 export GOARCH = $(shell go env GOARCH)
+export PLATFORM?=openshift # target platform for the operator (openshift, generic)
 
 # Runtime variables
 # =================
-DEFAULT_REPO=quay.io/compliance-operator
+DEFAULT_REPO=ghcr.io/complianceascode
 IMAGE_REPO?=$(DEFAULT_REPO)
 RUNTIME?=podman
 # Required for podman < 3.4.7 and buildah to use microdnf in fedora 35
@@ -64,7 +65,7 @@ DEFAULT_TAG=latest
 TAG?=$(DEFAULT_TAG)
 
 OPENSCAP_NAME=openscap-ocp
-DEFAULT_OPENSCAP_TAG=1.3.6
+DEFAULT_OPENSCAP_TAG=latest
 OPENSCAP_TAG?=$(DEFAULT_OPENSCAP_TAG)
 OPENSCAP_DOCKER_CONTEXT=./images/openscap
 DEFAULT_OPENSCAP_IMAGE=$(DEFAULT_REPO)/$(OPENSCAP_NAME):$(DEFAULT_OPENSCAP_TAG)
@@ -92,7 +93,7 @@ BENCHMARK_PKG?=github.com/ComplianceAsCode/compliance-operator/pkg/utils
 # go source files, ignore vendor directory
 SRC = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./_output/*")
 
-MUST_GATHER_IMAGE_PATH?=$(IMAGE_REPO)/must-gather
+MUST_GATHER_IMAGE_PATH?=$(IMAGE_REPO)/must-gather-ocp
 MUST_GATHER_IMAGE_TAG?=$(TAG)
 
 # Kubernetes variables
@@ -115,17 +116,17 @@ TEST_DEPLOY=$(TEST_SETUP_DIR)/deploy_rbac.yaml
 
 # Pass extra flags to the e2e test run.
 # e.g. to run a specific test in the e2e test suite, do:
-# 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/TestScanWithNodeSelectorFiltersCorrectly"
+# 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/Parallel_tests/TestScanWithNodeSelectorFiltersCorrectly"
 E2E_GO_TEST_FLAGS?=-v -test.timeout 120m
 
 # By default we run all tests; available options: all, parallel, serial
 E2E_TEST_TYPE?=all
 
-# By default, the tests skip cleanup on failures. Set this variable to false if you prefer
-# the tests to cleanup regardless of test status, e.g.:
-# E2E_SKIP_CLEANUP_ON_ERROR=false make e2e
-E2E_SKIP_CLEANUP_ON_ERROR?=true
-E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -skipCleanupOnError=$(E2E_SKIP_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
+# By default, the test runner won't cleanup resources from failed test runs. Set this
+# variable to true if you prefer the tests to cleanup regardless of test status, e.g.:
+# E2E_CLEANUP_ON_ERROR=true make e2e
+E2E_CLEANUP_ON_ERROR?=false
+E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
 TEST_OPTIONS?=
 # Skip pushing the container to your cluster
 E2E_SKIP_CONTAINER_PUSH?=false
@@ -141,9 +142,9 @@ CONTENT_IMAGE?=$(DEFAULT_CONTENT_IMAGE)
 E2E_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/k8scontent:latest
 # We specifically omit the tag here since we use this for testing
 # different images referenced by different tags.
-E2E_BROKEN_CONTENT_IMAGE_PATH?=quay.io/compliance-operator/test-broken-content
+E2E_BROKEN_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/test-broken-content-ocp
 
-MUST_GATHER_IMAGE_PATH?=quay.io/compliance-operator/must-gather
+MUST_GATHER_IMAGE_PATH?=ghcr.io/complianceascode/must-gather-ocp
 MUST_GATHER_IMAGE_TAG?=latest
 
 # New Makefile variables
@@ -212,7 +213,10 @@ CATALOG_DIR=config/catalog
 CATALOG_SRC_FILE=$(CATALOG_DIR)/catalog-source.yaml
 CATALOG_GROUP_FILE=$(CATALOG_DIR)/operator-group.yaml
 CATALOG_SUB_FILE=$(CATALOG_DIR)/subscription.yaml
-
+# If plafform is set to hypershift, we will use a different subscription file
+ifeq ($(PLATFORM), hypershift)
+	CATALOG_SUB_FILE=$(CATALOG_DIR)/subscription-hypershift.yaml
+endif
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -455,6 +459,17 @@ catalog-image: opm ## Build a catalog image.
 	$(OPM) generate dockerfile $(TMP_DIR)
 	$(RUNTIME) build -f $(CATALOG_DOCKERFILE) -t $(CATALOG_IMG)
 	rm -rf $(TMP_DIR) $(CATALOG_DOCKERFILE)
+# Generate the catalog dockerfile and the catalog json file
+# This is mainly used for github workflows to build the catalog image
+.PHONY: catalog-docker
+catalog-docker: opm ## Prepare the catalog dockerfile and the catalog json file.
+	$(eval CATALOG_DIR := catalog)
+	$(eval CATALOG_DOCKERFILE := $(CATALOG_DIR).Dockerfile)
+	rm -f $(CATALOG_DIR).Dockerfile
+	rm -f $(CATALOG_DIR)/compliance-operator-catalog.json
+	mv catalog/preamble.json $(CATALOG_DIR)/compliance-operator-catalog.json
+	$(OPM) render $(BUNDLE_IMGS) >> $(CATALOG_DIR)/compliance-operator-catalog.json
+	$(OPM) generate dockerfile $(CATALOG_DIR)
 
 .PHONY: catalog
 catalog: catalog-image catalog-push ## Build and push a catalog image.
@@ -472,7 +487,7 @@ endif
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(KUSTOMIZE) build config/crd | kubectl apply -f - 
 
 .PHONY: uninstall
 uninstall: kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -486,7 +501,7 @@ deploy: manifests kustomize install ## Deploy controller to the K8s cluster spec
 .PHONY: deploy-to-cluster
 deploy-local: manifests kustomize image-to-cluster install  ## Deploy after pushing images to the cluster registry.
 	cd config/manager && $(KUSTOMIZE) edit set image $(APP_NAME)=${OPERATOR_IMAGE}
-	$(KUSTOMIZE) build config/default | sed -e 's%$(DEFAULT_OPERATOR_IMAGE)%$(OPERATOR_IMAGE)%' -e 's%$(DEFAULT_CONTENT_IMAGE)%$(CONTENT_IMAGE)%' -e 's%$(DEFAULT_OPENSCAP_IMAGE)%$(OPENSCAP_IMAGE)%' | kubectl apply -f -
+	$(KUSTOMIZE) build config/$(PLATFORM) | sed -e 's%$(DEFAULT_OPERATOR_IMAGE)%$(OPERATOR_IMAGE)%' -e 's%$(DEFAULT_CONTENT_IMAGE)%$(CONTENT_IMAGE)%' -e 's%$(DEFAULT_OPENSCAP_IMAGE)%$(OPENSCAP_IMAGE)%' | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -553,14 +568,30 @@ else
 	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -json $(PKGS) --ginkgo.noColor | gotest2junit -v > $(JUNITFILE)
 endif
 
+.PHONY: test-coverage
+test-coverage: fmt ## Run the unit tests and generate a coverage report
+	@$(GO) test -cover -coverprofile=coverage.out $(PKGS)
+	@$(GO) tool cover -func coverage.out
+
 .PHONY: test-benchmark
 test-benchmark: ## Run the benchmark tests -- Note that this can only be ran for one package. You can set $BENCHMARK_PKG for this. cpu.prof and mem.prof will be generated
 	@$(GO) test -cpuprofile cpu.prof -memprofile mem.prof -bench . $(TEST_OPTIONS) $(BENCHMARK_PKG)
 	@echo "The pprof files generated are: cpu.prof and mem.prof"
 
 .PHONY: e2e
-e2e: e2e-set-image prep-e2e
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+e2e: e2e-set-image prep-e2e e2e-parallel e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
+
+.PHONY: e2e
+e2e-test-wait:
+	./utils/e2e-test-wait.sh
+
+.PHONY: e2e-parallel
+e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests concurrently.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-serial
+e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
 .PHONY: prep-e2e
 prep-e2e: kustomize
@@ -647,7 +678,7 @@ push-release: package-version-to-tag ## Create a commit for the release change, 
 	git push $(GIT_REMOTE) ocp-0.1
 
 .PHONY: release-images
-release-images: package-version-to-tag push catalog ## Build container images, bundle images, and catalog images and push them to an image registry (default: quay.io/compliance-operator).
+release-images: package-version-to-tag push catalog ## Build container images, bundle images, and catalog images and push them to an image registry (default: ghcr.io/complianceascode).
 	$(RUNTIME) image tag $(OPERATOR_IMAGE) $(OPERATOR_TAG_BASE):latest
 	$(RUNTIME) image tag $(BUNDLE_IMG) $(BUNDLE_TAG_BASE):latest
 	$(RUNTIME) image tag $(CATALOG_IMG) $(CATALOG_TAG_BASE):latest

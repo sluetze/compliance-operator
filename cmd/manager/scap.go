@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -34,6 +33,7 @@ import (
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	mcfgcommon "github.com/openshift/machine-config-operator/pkg/controller/common"
 	"github.com/wI2L/jsondiff"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimejson "k8s.io/apimachinery/pkg/runtime/serializer/json"
@@ -163,6 +163,8 @@ func openNonEmptyFile(filename string) (*os.File, error) {
 
 func (c *scapContentDataStream) FigureResources(profile string) error {
 	// Always stage the clusteroperators/openshift-apiserver object for version detection.
+	namespace := os.Getenv("POD_NAMESPACE")
+	podName := os.Getenv("POD_NAME")
 	found := []utils.ResourcePath{
 		{
 			ObjPath:  "/version",
@@ -183,6 +185,10 @@ func (c *scapContentDataStream) FigureResources(profile string) error {
 		{
 			ObjPath:  "/api/v1/nodes",
 			DumpPath: "/api/v1/nodes",
+		},
+		{
+			ObjPath:  fmt.Sprintf("/api/v1/namespaces/%s/pods/%s", namespace, podName),
+			DumpPath: "/api/v1/namespaces/openshift-compliance/pods/api-checks-pod",
 		},
 	}
 
@@ -553,7 +559,9 @@ func fetch(ctx context.Context, streamDispatcher streamerDispatcherFn, rfClients
 			if meta.IsNoMatchError(err) || kerrors.IsForbidden(err) || kerrors.IsNotFound(err) {
 				DBG("Encountered non-fatal error to be persisted in the scan: %s", err)
 				objerr := fmt.Errorf("could not fetch %s: %w", uri, err)
-				warnings = append(warnings, objerr.Error())
+				if !rpath.SuppressWarning {
+					warnings = append(warnings, objerr.Error())
+				}
 				// for 404s we'll add a warning comment in the object so openSCAP can read and process it
 				if kerrors.IsNotFound(err) {
 					results[rpath.DumpPath] = []byte("# kube-api-error=" + kerrors.ReasonForError(err))
@@ -563,7 +571,7 @@ func fetch(ctx context.Context, streamDispatcher streamerDispatcherFn, rfClients
 				return fmt.Errorf("streaming URIs failed: %w", err)
 			}
 			defer stream.Close()
-			body, err := ioutil.ReadAll(stream)
+			body, err := io.ReadAll(stream)
 			if err != nil {
 				return err
 			}
@@ -653,9 +661,28 @@ func filter(ctx context.Context, rawobj []byte, filter string) ([]byte, error) {
 		return nil, err
 	}
 
-	out, marshallErr := json.Marshal(&v)
-	if marshallErr != nil {
-		return nil, fmt.Errorf("Error marshalling json: %w", marshallErr)
+	var out []byte
+	var err error
+	switch val := v.(type) {
+	case string:
+		// If filter result is a string type, check if it is YAML
+		var yamlData map[string]interface{}
+		err = yaml.Unmarshal([]byte(val), &yamlData)
+		if err != nil {
+			// If it is not YAML, return the string as is
+			out = []byte(val)
+		} else {
+			// If it is YAML, convert it to JSON
+			out, err = json.Marshal(yamlData)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling JSON: %w", err)
+			}
+		}
+	default:
+		out, err = json.Marshal(&v)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling JSON: %w", err)
+		}
 	}
 	_, isNotEOF := iter.Next()
 	if isNotEOF {
@@ -672,7 +699,7 @@ func (c *scapContentDataStream) SaveWarningsIfAny(warnings []string, outputFile 
 	}
 	DBG("Persisting warnings to output file")
 	warningsStr := strings.Join(warnings, "\n")
-	err := ioutil.WriteFile(outputFile, []byte(warningsStr), 0600)
+	err := os.WriteFile(outputFile, []byte(warningsStr), 0600)
 	return err
 }
 
@@ -692,7 +719,7 @@ func saveResources(rootDir string, data map[string][]byte) error {
 		if err != nil {
 			return err
 		}
-		err = ioutil.WriteFile(savePath, fileContents, 0600)
+		err = os.WriteFile(savePath, fileContents, 0600)
 		if err != nil {
 			return err
 		}

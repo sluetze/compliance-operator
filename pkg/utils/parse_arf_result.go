@@ -77,9 +77,10 @@ type ParseResult struct {
 }
 
 type ResourcePath struct {
-	ObjPath  string
-	DumpPath string
-	Filter   string
+	ObjPath         string
+	DumpPath        string
+	Filter          string
+	SuppressWarning bool
 }
 
 // getPathsFromRuleWarning finds the API endpoint from in. The expected structure is:
@@ -117,7 +118,7 @@ func GetPathFromWarningXML(in *xmlquery.Node, valuesList map[string]string) ([]R
 					dumpPath, _, err = RenderValues(XmlNodeAsMarkdown(dumpNode), valuesList)
 				}
 			}
-			apiPaths = append(apiPaths, ResourcePath{ObjPath: path, DumpPath: dumpPath, Filter: filter})
+			apiPaths = append(apiPaths, ResourcePath{ObjPath: path, DumpPath: dumpPath, Filter: filter, SuppressWarning: warningHasSuppressTag(in)})
 		}
 	}
 	if len(errMsgs) > 0 {
@@ -144,6 +145,18 @@ func warningHasHideTag(in *xmlquery.Node) bool {
 
 	for _, codeNode := range codeNodes {
 		if codeNode.SelectAttr("class") == hideTag {
+			return true
+		}
+	}
+
+	return false
+}
+
+func warningHasSuppressTag(in *xmlquery.Node) bool {
+	codeNodes := in.SelectElements("//html:code")
+
+	for _, codeNode := range codeNodes {
+		if codeNode.SelectAttr("class") == "ocp-suppress-warning" {
 			return true
 		}
 	}
@@ -340,7 +353,7 @@ func GetRuleOvalTest(rule *xmlquery.Node, defTable NodeByIdHashTable) NodeByIdHa
 	return testList
 }
 
-func removeDuplicate(input []string) []string {
+func RemoveDuplicate(input []string) []string {
 	keys := make(map[string]bool)
 	trimmedList := []string{}
 
@@ -352,7 +365,7 @@ func removeDuplicate(input []string) []string {
 	}
 	return trimmedList
 }
-func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, variableList map[string]string) []string {
+func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string) []string {
 	var valueList []string
 	ruleTests := GetRuleOvalTest(rule, defTable)
 	if len(ruleTests) == 0 {
@@ -366,10 +379,14 @@ func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariable
 		valueList = append(valueList, valueListTemp...)
 
 	}
+	_, valueListInstruct := GetInstructionsForRule(rule, ocilTable, variableList)
+	if len(valueListInstruct) > 0 {
+		valueList = append(valueList, valueListInstruct...)
+	}
 	if len(valueList) == 0 {
 		return valueList
 	}
-	valueList = removeDuplicate(valueList)
+	valueList = RemoveDuplicate(valueList)
 	//remove duplicate because one rule can have different tests that use same variable, so we want to remove the extra variable since we
 	//want to associate rule with value not specify check
 	valueList = sort.StringSlice(valueList)
@@ -404,29 +421,29 @@ func getRuleOcilQuestionID(rule *xmlquery.Node) string {
 	return strings.TrimSuffix(questionnareName, questionnaireSuffix) + questionSuffix
 }
 
-func GetInstructionsForRule(rule *xmlquery.Node, ocilTable NodeByIdHashTable, valuesList map[string]string) string {
+func GetInstructionsForRule(rule *xmlquery.Node, ocilTable NodeByIdHashTable, valuesList map[string]string) (instructionText string, valuesRendered []string) {
 	// convert rule's questionnaire ID to question ID
 	ruleQuestionId := getRuleOcilQuestionID(rule)
 
 	// look up the node
 	questionNode, ok := ocilTable[ruleQuestionId]
 	if !ok {
-		return ""
+		return "", nil
 	}
 
 	// if not found, return empty string
 	textNode := questionNode.SelectElement("ocil:question_text")
 	if textNode == nil {
-		return ""
+		return "", nil
 	}
 
 	if textNode.InnerText() == "" {
-		return ""
+		return "", nil
 	}
 
-	textNodeStr, _, err := RenderValues(textNode.InnerText(), valuesList)
+	textNodeStr, valuesRendered, err := RenderValues(textNode.InnerText(), valuesList)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 
 	// if found, strip the last line
@@ -435,7 +452,7 @@ func GetInstructionsForRule(rule *xmlquery.Node, ocilTable NodeByIdHashTable, va
 		textSlice = textSlice[:len(textSlice)-1]
 	}
 
-	return strings.TrimSpace(strings.Join(textSlice, "\n"))
+	return strings.TrimSpace(strings.Join(textSlice, "\n")), valuesRendered
 }
 
 // ParseContent parses the DataStream and returns the XML document
@@ -483,8 +500,8 @@ func ParseResultsFromContentAndXccdf(scheme *runtime.Scheme, scanName string, na
 			continue
 		}
 
-		instructions := GetInstructionsForRule(resultRule, questionsTable, valuesList)
-		ruleValues := getValueListUsedForRule(resultRule, ovalTestVarTable, defTable, valuesList)
+		instructions, _ := GetInstructionsForRule(resultRule, questionsTable, valuesList)
+		ruleValues := getValueListUsedForRule(resultRule, ovalTestVarTable, defTable, questionsTable, valuesList)
 		resCheck, err := newComplianceCheckResult(result, resultRule, ruleIDRef, instructions, scanName, namespace, ruleValues, manualRules, valuesList)
 		if err != nil {
 			continue

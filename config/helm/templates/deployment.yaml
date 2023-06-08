@@ -19,7 +19,7 @@ spec:
       serviceAccountName: compliance-operator
       containers:
         - name: compliance-operator
-          image: "quay.io/compliance-operator/compliance-operator:latest"
+          image: "ghcr.io/complianceascode/compliance-operator:latest"
           command:
           - compliance-operator
           - operator
@@ -53,11 +53,11 @@ spec:
                   fieldPath: metadata.name
             - name: RELATED_IMAGE_OPENSCAP
               # Hardcoding this temporarily until its propagated to CI
-              value: "quay.io/compliance-operator/openscap-ocp:1.3.5"
+              value: "ghcr.io/complianceascode/openscap-ocp:latest"
             - name: RELATED_IMAGE_OPERATOR
-              value: "quay.io/compliance-operator/compliance-operator:latest"
+              value: "ghcr.io/complianceascode/compliance-operator:latest"
             - name: RELATED_IMAGE_PROFILE
-              value: "quay.io/compliance-operator/compliance-operator-content:latest"
+              value: "ghcr.io/complianceascode/k8scontent:latest"
           volumeMounts:
             - name: serving-cert
               mountPath: /var/run/secrets/serving-cert

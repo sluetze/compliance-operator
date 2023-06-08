@@ -1,11 +1,11 @@
 package framework
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/restmapper"
@@ -22,12 +22,12 @@ type Context struct {
 	watchNamespace    string
 	t                 *testing.T
 
-	namespacedManPath  string
-	testType           string
-	client             *frameworkClient
-	kubeclient         kubernetes.Interface
-	restMapper         *restmapper.DeferredDiscoveryRESTMapper
-	skipCleanupOnError bool
+	namespacedManPath string
+	testType          string
+	client            *frameworkClient
+	kubeclient        kubernetes.Interface
+	restMapper        *restmapper.DeferredDiscoveryRESTMapper
+	cleanupOnError    bool
 }
 
 // todo(camilamacedo86): Remove the following line just added for we are able to deprecated TestCtx
@@ -45,14 +45,13 @@ type CleanupOptions struct {
 type cleanupFn func() error
 
 func (f *Framework) newContext(t *testing.T) *Context {
-
 	// Context is used among others for namespace names where '/' is forbidden and must be 63 characters or less
-	id := "osdk-e2e-" + uuid.New()
+	id := f.OperatorNamespace
 
-	var operatorNamespace string
-	_, ok := os.LookupEnv(TestOperatorNamespaceEnv)
+	operatorNamespace := f.OperatorNamespace
+	val, ok := os.LookupEnv(TestOperatorNamespaceEnv)
 	if ok {
-		operatorNamespace = f.OperatorNamespace
+		operatorNamespace = val
 	}
 
 	watchNamespace := operatorNamespace
@@ -62,17 +61,17 @@ func (f *Framework) newContext(t *testing.T) *Context {
 	}
 
 	return &Context{
-		id:                 id,
-		t:                  t,
-		namespace:          operatorNamespace,
-		operatorNamespace:  operatorNamespace,
-		watchNamespace:     watchNamespace,
-		namespacedManPath:  *f.NamespacedManPath,
-		client:             f.Client,
-		kubeclient:         f.KubeClient,
-		restMapper:         f.restMapper,
-		skipCleanupOnError: f.skipCleanupOnError,
-		testType:           f.testType,
+		id:                id,
+		t:                 t,
+		namespace:         operatorNamespace,
+		operatorNamespace: operatorNamespace,
+		watchNamespace:    watchNamespace,
+		namespacedManPath: *f.NamespacedManPath,
+		client:            f.Client,
+		kubeclient:        f.KubeClient,
+		restMapper:        f.restMapper,
+		cleanupOnError:    f.cleanupOnError,
+		testType:          f.testType,
 	}
 }
 
@@ -87,9 +86,10 @@ func (ctx *Context) GetID() string {
 func (ctx *Context) Cleanup() {
 	if ctx.t != nil {
 		// The cleanup function will be skipped
-		if ctx.t.Failed() && ctx.skipCleanupOnError {
+		if ctx.t.Failed() && ctx.cleanupOnError {
 			// Also, could we log the error here?
-			log.Info("Skipping cleanup function since --skip-cleanup-error is true")
+			s := fmt.Sprintf("Skipping cleanup function since -cleanupOnError is false and %s failed", ctx.t.Name())
+			log.Info(s)
 			return
 		}
 	}
@@ -108,6 +108,7 @@ func (ctx *Context) Cleanup() {
 	if ctx.t == nil && failed {
 		log.Fatal("A cleanup function failed")
 	}
+
 }
 
 func (ctx *Context) GetTestType() string {

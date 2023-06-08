@@ -25,7 +25,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -239,7 +238,7 @@ func readResultsFile(filename string, timeout int64) (*resultFileContents, error
 	cleanFileName := filepath.Clean(filename)
 	handle, err := waitForResultsFile(cleanFileName, timeout)
 	if err != nil {
-		os.Exit(1)
+		return nil, fmt.Errorf("error waiting for results file: %w", err)
 	}
 	// #nosec
 	defer handle.Close()
@@ -283,7 +282,7 @@ func readWarningsFile(filename string) string {
 	if filename == "" {
 		return ""
 	}
-	contents, err := ioutil.ReadFile(filepath.Clean(filename))
+	contents, err := os.ReadFile(filepath.Clean(filename))
 	if os.IsNotExist(err) {
 		// warnings file provided, but no warnings were generated
 		return ""
@@ -433,7 +432,7 @@ func getOscapExitCode(scapresultsconf *scapresultsConfig) string {
 	}
 	defer exitcodeContent.close()
 
-	exitcode, _ := ioutil.ReadAll(exitcodeContent.contents)
+	exitcode, _ := io.ReadAll(exitcodeContent.contents)
 	return strings.Trim(string(exitcode), "\n")
 }
 
@@ -442,7 +441,7 @@ func getMutualHttpsTransport(c *scapresultsConfig) (*http.Transport, error) {
 	if err != nil {
 		return nil, err
 	}
-	ca, err := ioutil.ReadFile(c.CA)
+	ca, err := os.ReadFile(c.CA)
 	if err != nil {
 		return nil, err
 	}

@@ -85,6 +85,14 @@ func (f *frameworkClient) Create(gCtx goctx.Context, obj dynclient.Object, clean
 	return nil
 }
 
+func (f *frameworkClient) CreateWithoutCleanup(gCtx goctx.Context, obj dynclient.Object) error {
+	err := f.Client.Create(gCtx, obj)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (f *frameworkClient) Get(gCtx goctx.Context, key dynclient.ObjectKey, obj dynclient.Object) error {
 	return f.Client.Get(gCtx, key, obj)
 }

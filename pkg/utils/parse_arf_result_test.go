@@ -842,9 +842,41 @@ Server 3.fedora.pool.ntp.org`
 				It("Should render correct instruction", func() {
 					rule := dsDom.SelectElement("//xccdf-1.2:Rule[@id='xccdf_org.ssgproject.content_rule_sshd_set_keepalive']")
 					questionsTable := NewOcilQuestionTable(dsDom)
-					instruction := GetInstructionsForRule(rule, questionsTable, valuesList)
+					instruction, _ := GetInstructionsForRule(rule, questionsTable, valuesList)
 					Expect(instruction).To(ContainSubstring("-----0-----"))
 
+				})
+			})
+
+		})
+		Describe("Testing values used in instruction rendering", func() {
+			Context("Valid XCCDF", func() {
+				resultsFilename = "../../tests/data/xccdf-result-remdiation-templating.xml"
+				dsFilename = "../../tests/data/ds-input-for-remediation-value.xml"
+				resultsReader, err := os.Open(resultsFilename)
+				Expect(err).NotTo(HaveOccurred())
+				resultsDom, err := xmlquery.Parse(resultsReader)
+				Expect(err).NotTo(HaveOccurred())
+
+				ds, err = os.Open(dsFilename)
+				Expect(err).NotTo(HaveOccurred())
+				dsDom, err := ParseContent(ds)
+				Expect(err).NotTo(HaveOccurred())
+				It("Should parse the XCCDF without errors", func() {
+					Expect(err).NotTo(HaveOccurred())
+				})
+				allValues := xmlquery.Find(resultsDom, "//set-value")
+				valuesList := make(map[string]string)
+
+				for _, codeNode := range allValues {
+					valuesList[strings.TrimPrefix(codeNode.SelectAttr("idref"), valuePrefix)] = codeNode.InnerText()
+				}
+
+				It("Should render correct instruction", func() {
+					rule := dsDom.SelectElement("//xccdf-1.2:Rule[@id='xccdf_org.ssgproject.content_rule_sshd_set_keepalive']")
+					questionsTable := NewOcilQuestionTable(dsDom)
+					_, valuesUsed := GetInstructionsForRule(rule, questionsTable, valuesList)
+					Expect(valuesUsed).To(ContainElement("var_sshd_set_keepalive"))
 				})
 			})
 

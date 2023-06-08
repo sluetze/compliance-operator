@@ -17,6 +17,7 @@ package manager
 
 import (
 	"flag"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -71,6 +72,7 @@ func defineAPIResourceCollectorFlags(cmd *cobra.Command) {
 	cmd.Flags().String("profile", "", "The scan profile.")
 	cmd.Flags().String("warnings-output-file", "", "A file containing the warnings output.")
 	cmd.Flags().Bool("debug", false, "Print debug messages.")
+	cmd.Flags().String("platform", "", "The platform flag used by CPE detection.")
 
 	flags := cmd.Flags()
 

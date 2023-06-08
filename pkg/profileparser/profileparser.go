@@ -614,7 +614,6 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 				foundPlatformMap[platform] = true
 			}
 
-			instructions := utils.GetInstructionsForRule(ruleObj, questionsTable, valuesList)
 			defs := utils.GetRuleOvalTest(ruleObj, defTable)
 
 			// note: stdParser is a global variable initialized in init()
@@ -623,6 +622,13 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 				log.Error(err, "couldn't annotate a rule")
 				// We continue even if there's an error.
 			}
+
+			instructions, valuesRendered := utils.GetInstructionsForRule(ruleObj, questionsTable, valuesList)
+
+			if len(valuesRendered) > 0 {
+				annotations[cmpv1alpha1.RuleVariableAnnotationKey] = strings.ReplaceAll(strings.Join(utils.RemoveDuplicate(valuesRendered), ","), "_", "-")
+			}
+
 			if utils.RuleHasHideTagWarning(ruleObj) {
 				log.Info("Rule has hide tag warning")
 				annotations[cmpv1alpha1.RuleHideTagAnnotationKey] = "true"

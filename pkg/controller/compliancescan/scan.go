@@ -3,6 +3,7 @@ package compliancescan
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"strings"
 
@@ -311,6 +312,7 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 		"--resultdir=" + PlatformScanDataRoot,
 		"--profile=" + scanInstance.Spec.Profile,
 		"--warnings-output-file=/reports/warning_output",
+		"--platform=" + os.Getenv("PLATFORM"),
 	}
 	if scanInstance.Spec.TailoringConfigMap != nil {
 		// NOTE(jaosorior): Adding the tailoring volume is handled in the
@@ -409,6 +411,24 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 						{
 							Name:      "report-dir",
 							MountPath: "/reports",
+						},
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name: "POD_NAMESPACE",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.namespace",
+								},
+							},
+						},
+						{
+							Name: "POD_NAME",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.name",
+								},
+							},
 						},
 					},
 				},

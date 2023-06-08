@@ -32,6 +32,86 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 -
 
 
+## [1.1.0] - 2023-06-08
+
+### Enhancements
+
+- The operator can now be deployed on HyperShift HostedCluster using OLM with 
+  a special subscription file in `config/catalog/subscriptions-hypershift.yaml`.
+  This can be used to deploy from both downstream and upstream source. See
+  `doc/usage.md` for more details.
+
+### Fixes
+
+- The operator now parses links from the compliance content and renders it in
+  custom resources accordingly.
+
+- The operator have the ability to hide warnings for certain failed to fetched
+  resources, this is useful when the user does not want to see the warnings
+  for certain resources, for example, the user does not want to see the
+  warnings for rules that used to detect HyperShift.
+
+- Fix values used rendering issues for some rules that reference variables in
+  the rule's instruction.
+  [OCPBUGS-7456](https://issues.redhat.com/browse/OCPBUGS-7456)
+
+### Internal Changes
+
+- Update Kustomize and make target to be able to deploy on generic Kubernetes cluster.
+
+- Added an ability to identify which platform we are on using a CPE. We always
+  fetch api-checks-pod pod object, and save it to a dump file
+  when api-resource collector is running, CPE can use the dump file to
+  check the command line arguments to see if we are running on a specific
+  platform.
+
+### Deprecations
+
+-
+
+### Removals
+
+-
+
+### Security
+
+-
+
+
+## [1.0.0] - 2023-04-08
+
+The Compliance Operator is now stable and follows semantic versioning rules. No
+backwards incompatible changes were made between version 0.1.61 and 1.0.0 to
+allow for smoother upgrades.
+
+### Internal Changes
+
+- Fix openscap image substitution in Makefile so that the correct image is used.
+
+- Fix github operator image workflow to listen to the master branch, added
+  bundle image, and openscap image build jobs to the workflow. Also added
+  a special Dockerfile for the bundle image so that the bundle image can
+  point to the correct images.
+
+- Modify API resource collector to detect if fetched resource is yaml string and
+  convert it to json when found, this is necessary because some of the API resources
+  are not available in json format, and we need to convert it to json format so that
+  it can be read by OpenSCAP.
+
+- Added documentation on how to run a platform scan on HyperShift Management
+  Cluster in `doc/usage.md`.
+
+### Removals
+
+- The `compliance_scan_error_total` metric was designed to count individual
+  scan errors. As a result, one of the metric keys contained the scan error,
+  which is large. The length and uniqueness of the metric itself can cause
+  issues in Prometheus, as noted in [Metric and Label Naming best
+  practices](https://prometheus.io/docs/practices/naming/#labels). The error
+  in the metric has been removed to reduce cardinality. Please see the [bug
+  report](https://issues.redhat.com/browse/OCPBUGS-1803) for more details.
+
+
 ## [0.1.61] - 2023-02-08
 
 ### Fixes
@@ -58,7 +138,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   e.g. `1h30m`. If the scan is not completed within the timeout, the
   corresponding scan will either fail or retry.
   See [To use timeout option for scan](https://github.com/ComplianceAsCode/compliance-operator/blob/master/doc/usage.md#to-use-timeout-option-for-scan) in `doc/usage.md` for details usage.
-
 
 ### Fixes
 

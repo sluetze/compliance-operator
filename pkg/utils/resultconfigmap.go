@@ -3,7 +3,6 @@ package utils
 import (
 	"encoding/base64"
 	"io"
-	"io/ioutil"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,7 +24,7 @@ func encodetoBase64(src io.Reader) string {
 			pw.Close()
 		}
 	}()
-	out, _ := ioutil.ReadAll(pr)
+	out, _ := io.ReadAll(pr)
 	return string(out)
 }
 
@@ -39,7 +38,7 @@ func GetResultConfigMap(owner metav1.Object, configMapName, filename, nodeName s
 		}
 		strcontents = encodetoBase64(contents)
 	} else {
-		contentBytes, _ := ioutil.ReadAll(contents)
+		contentBytes, _ := io.ReadAll(contents)
 		strcontents = string(contentBytes)
 	}
 	if nodeName != "" {

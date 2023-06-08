@@ -21,7 +21,6 @@ import (
 	"crypto/x509"
 	"flag"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -172,7 +171,7 @@ func server(c *resultServerConfig) {
 
 	rotateResultDirectories(c.BasePath, c.Rotation)
 
-	caCert, err := ioutil.ReadFile(c.CA)
+	caCert, err := os.ReadFile(c.CA)
 	if err != nil {
 		cmdLog.Error(err, "Error reading CA file")
 		os.Exit(1)

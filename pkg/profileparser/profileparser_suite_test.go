@@ -27,7 +27,7 @@ var _ = BeforeSuite(func() {
 	brokenContentImagePath = os.Getenv("BROKEN_CONTENT_IMAGE")
 
 	if brokenContentImagePath == "" {
-		brokenContentImagePath = "quay.io/compliance-operator/test-broken-content"
+		brokenContentImagePath = "ghcr.io/complianceascode/test-broken-content-ocp"
 	}
 
 	pInput = newParserInput("test-profile", testNamespace,

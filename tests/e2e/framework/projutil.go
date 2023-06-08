@@ -2,7 +2,6 @@ package framework
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -134,11 +133,12 @@ func (opts GoCmdOptions) setCmdFields(c *exec.Cmd) {
 }
 
 // From https://github.com/golang/go/wiki/Modules:
-//	You can activate module support in one of two ways:
-//	- Invoke the go command in a directory with a valid go.mod file in the
-//      current directory or any parent of it and the environment variable
-//      GO111MODULE unset (or explicitly set to auto).
-//	- Invoke the go command with GO111MODULE=on environment variable set.
+//
+//		You can activate module support in one of two ways:
+//		- Invoke the go command in a directory with a valid go.mod file in the
+//	     current directory or any parent of it and the environment variable
+//	     GO111MODULE unset (or explicitly set to auto).
+//		- Invoke the go command with GO111MODULE=on environment variable set.
 //
 // GoModOn returns true if Go modules are on in one of the above two ways.
 func GoModOn() (bool, error) {
@@ -214,7 +214,7 @@ func GetGoPkg() string {
 	if _, err := os.Stat(goModFile); err != nil && !os.IsNotExist(err) {
 		log.Fatalf("Failed to read go.mod: %v", err)
 	} else if err == nil {
-		b, err := ioutil.ReadFile(goModFile)
+		b, err := os.ReadFile(goModFile)
 		if err != nil {
 			log.Fatalf("Read go.mod: %v", err)
 		}
