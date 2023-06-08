@@ -9,6 +9,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Enhancements
 
+-
+
+### Fixes
+
+-
+
+### Internal Changes
+
+-
+
+### Deprecations
+
+-
+
+### Removals
+
+-
+
+### Security
+
+-
+
+
+## [1.1.0] - 2023-06-08
+
+### Enhancements
+
 - The operator can now be deployed on HyperShift HostedCluster using OLM with 
   a special subscription file in `config/catalog/subscriptions-hypershift.yaml`.
   This can be used to deploy from both downstream and upstream source. See
