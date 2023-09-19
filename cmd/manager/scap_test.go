@@ -449,7 +449,7 @@ var _ = Describe("Testing fetching", func() {
 			scheme := scheme.Scheme
 			scheme.AddKnownTypes(mcfgv1.SchemeGroupVersion, &mcList, &mcList.Items[0])
 
-			client := fake.NewFakeClientWithScheme(scheme, &mcList)
+			client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&mcList).Build()
 			fakeClients = resourceFetcherClients{client: client}
 
 			fetchMcResources := []utils.ResourcePath{
@@ -690,7 +690,7 @@ var _ = Describe("Testing fetching", func() {
 			scheme := scheme.Scheme
 			scheme.AddKnownTypes(corev1.SchemeGroupVersion, &fakeNodeList, &fakeNodeList.Items[0])
 
-			client := fake.NewFakeClientWithScheme(scheme, &fakeNodeList)
+			client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&fakeNodeList).Build()
 			fakeClients = resourceFetcherClients{client: client}
 
 			expectedFiguredResources = []utils.ResourcePath{

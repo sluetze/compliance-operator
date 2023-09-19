@@ -42,6 +42,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/ComplianceAsCode/compliance-operator/pkg/apis"
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -191,9 +193,10 @@ func RunOperator(cmd *cobra.Command, args []string) {
 
 	// Unused, but kept until we decide what to do with multi-namespace support. See the creation of `mgr` below for
 	// the actual operator options configuration.
+	c := cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}}
 	options := manager.Options{
-		Namespace:          namespace,
-		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		Cache:   c,
+		Metrics: metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
 	}
 	var namespaceList []string
 
@@ -205,8 +208,9 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		// More Info: https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/cache#MultiNamespacedCacheBuilder
 		if strings.Contains(namespace, ",") {
 			// These are not applied because of the non-use of the `options` variable, so multi-namespace is probably non-functional.
-			options.Namespace = ""
-			options.NewCache = cache.MultiNamespacedCacheBuilder(namespaceList)
+			for _, ns := range namespaceList {
+				options.Cache.DefaultNamespaces[ns] = cache.Config{}
+			}
 		}
 	} else {
 		// NOTE(jaosorior): This will be used to set up the needed defaults
@@ -225,10 +229,10 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Namespace:              namespace,
+		Cache:                  c,
 		Scheme:                 operatorScheme,
-		MetricsBindAddress:     fmt.Sprintf("%s:%d", metricsHost, metricsPort),
-		Port:                   9443,
+		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "81473831.openshift.io", // operator-sdk generated this for us

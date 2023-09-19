@@ -21,8 +21,9 @@ var _ = BeforeSuite(func() {
 	objs = append(objs, &cmpv1alpha1.ProfileBundle{}, &cmpv1alpha1.Profile{}, &cmpv1alpha1.ProfileList{})
 
 	cmpScheme := k8sruntime.NewScheme()
-	_ = compapis.AddToScheme(cmpScheme)
-	client = fake.NewFakeClientWithScheme(cmpScheme)
+	err := compapis.AddToScheme(cmpScheme)
+	Expect(err).To(BeNil())
+	client = fake.NewClientBuilder().WithScheme(cmpScheme).Build()
 
 	brokenContentImagePath = os.Getenv("BROKEN_CONTENT_IMAGE")
 
