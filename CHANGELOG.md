@@ -32,6 +32,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 -
 
 
+## [1.3.1] - 2023-10-11
+
+### Fixes
+
+- Fix an issue caused by outdated Machine Config Operator dependencies where
+  the API check pod crashes due to Machine Config Operator using newer versions
+  of Ignition (3.4).
+  [OCPBUGS-18025](https://issues.redhat.com/browse/OCPBUGS-18025)
+
 ## [1.3.0] - 2023-09-11
 
 ### Enhancements
