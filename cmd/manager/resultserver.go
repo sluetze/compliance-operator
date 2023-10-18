@@ -181,6 +181,7 @@ func server(c *resultServerConfig) {
 
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		NextProtos: []string{"http/1.1"},
 	}
 	// Configures TLS 1.2
 	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)

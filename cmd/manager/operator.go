@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -228,11 +229,19 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
+	disableHTTP2 := func(c *tls.Config) {
+		c.NextProtos = []string{"http/1.1"}
+	}
+	webhookServerOptions := webhook.Options{
+		Port:    9443,
+		TLSOpts: []func(config *tls.Config){disableHTTP2},
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Cache:                  c,
 		Scheme:                 operatorScheme,
 		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
-		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
+		WebhookServer:          webhook.NewServer(webhookServerOptions),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "81473831.openshift.io", // operator-sdk generated this for us
