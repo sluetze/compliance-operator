@@ -2795,3 +2795,20 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 		t.Fatal("The scan should have the timeout annotation")
 	}
 }
+
+func TestResultServerHTTPVersion(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	endpoints := []string{
+		fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace),
+		fmt.Sprintf("http://metrics.%s.svc:8383/metrics", f.OperatorNamespace),
+	}
+
+	expectedHTTPVersion := "HTTP/1.1"
+	for _, endpoint := range endpoints {
+		err := f.AssertMetricsEndpointUsesHTTPVersion(endpoint, expectedHTTPVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}

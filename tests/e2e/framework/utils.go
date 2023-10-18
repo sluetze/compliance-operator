@@ -308,6 +308,31 @@ func AssertEachMetric(namespace string, expectedMetrics map[string]int) error {
 	return nil
 }
 
+func (f *Framework) AssertMetricsEndpointUsesHTTPVersion(endpoint, version string) error {
+	ocPath, err := exec.LookPath("oc")
+	if err != nil {
+		return err
+	}
+
+	curlCMD := "curl -i -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" " + endpoint
+	// We're just under test.
+	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
+	// #nosec
+	cmd := exec.Command(ocPath,
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"-n", f.OperatorNamespace, "metrics-test", "--", "bash", "-c", curlCMD,
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error getting output %s", err)
+	}
+	if !strings.Contains(string(out), version) {
+		return fmt.Errorf("metric endpoint is not using %s", version)
+	}
+	return nil
+}
+
 func assertMetric(content, metric string, expected int) error {
 	val, err := parseMetric(content, metric)
 	if err != nil {
