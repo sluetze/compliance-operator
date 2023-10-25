@@ -3,6 +3,7 @@ package compliancesuite
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/metrics"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/metrics/metricsfakes"
 
@@ -207,7 +208,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 
 			By("The remediation controller setting the applied status")
 			rem.Status.ApplicationState = compv1alpha1.RemediationApplied
-			err := reconciler.Client.Update(ctx, rem)
+			err := reconciler.Client.Status().Update(ctx, rem)
 			Expect(err).To(BeNil())
 
 			By("Running a second reconcile loop")
@@ -222,7 +223,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 		Context("With spec.AutoApplyRemediations = true", func() {
 			BeforeEach(func() {
 				suite.Spec.AutoApplyRemediations = true
-				err := reconciler.Client.Status().Update(ctx, suite)
+				err := reconciler.Client.Update(ctx, suite)
 				Expect(err).To(BeNil())
 			})
 			Context("With ComplianceSuite and Scans not done", func() {
@@ -351,7 +352,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 
 			By("The remediation controller setting the applied status")
 			rem.Status.ApplicationState = compv1alpha1.RemediationApplied
-			err := reconciler.Client.Update(ctx, rem)
+			err := reconciler.Client.Status().Update(ctx, rem)
 			Expect(err).To(BeNil())
 
 			By("the pool should be paused")
@@ -374,7 +375,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 		Context("With spec.AutoApplyRemediations = true", func() {
 			BeforeEach(func() {
 				suite.Spec.AutoApplyRemediations = true
-				err := reconciler.Client.Status().Update(ctx, suite)
+				err := reconciler.Client.Update(ctx, suite)
 				Expect(err).To(BeNil())
 			})
 			Context("With ComplianceSuite and Scans not done", func() {
@@ -596,7 +597,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 
 			By("The remediation controller setting the applied status")
 			rem.Status.ApplicationState = compv1alpha1.RemediationApplied
-			err := reconciler.Client.Update(ctx, rem)
+			err := reconciler.Client.Status().Update(ctx, rem)
 			Expect(err).To(BeNil())
 
 			By("the pool should be paused")
@@ -651,7 +652,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 		Context("With spec.AutoApplyRemediations = true", func() {
 			BeforeEach(func() {
 				suite.Spec.AutoApplyRemediations = true
-				err := reconciler.Client.Status().Update(ctx, suite)
+				err := reconciler.Client.Update(ctx, suite)
 				Expect(err).To(BeNil())
 			})
 			Context("With ComplianceSuite and Scans not done", func() {
@@ -875,7 +876,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 
 			By("The remediation controller setting the applied status")
 			rem.Status.ApplicationState = compv1alpha1.RemediationApplied
-			err := reconciler.Client.Update(ctx, rem)
+			err := reconciler.Client.Status().Update(ctx, rem)
 			Expect(err).To(BeNil())
 
 			By("the pool should be paused")
@@ -930,7 +931,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 		Context("With spec.AutoApplyRemediations = true", func() {
 			BeforeEach(func() {
 				suite.Spec.AutoApplyRemediations = true
-				err := reconciler.Client.Status().Update(ctx, suite)
+				err := reconciler.Client.Update(ctx, suite)
 				Expect(err).To(BeNil())
 			})
 			Context("With ComplianceSuite and Scans not done", func() {

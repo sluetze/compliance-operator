@@ -410,8 +410,10 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 
 				// Set state to DONE
 				compliancescaninstance.Status.Phase = compv1alpha1.PhaseDone
-				compliancescaninstance.Spec.Debug = true
 				err := reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
+				Expect(err).To(BeNil())
+				compliancescaninstance.Spec.Debug = true
+				err = reconciler.Client.Update(context.TODO(), compliancescaninstance)
 				Expect(err).To(BeNil())
 			})
 			It("Should return success & not delete the scan pods or secrets (doDelete=false)", func() {
