@@ -422,7 +422,7 @@ build: generate fmt vet test-unit ## Build the operator binary.
 	$(GO) build \
 		-trimpath \
 		-ldflags=-buildid= \
-		-o $(TARGET_OPERATOR) $(MAIN_PKG)
+		-o $(TARGET_OPERATOR) $(BUILD_FLAGS) $(MAIN_PKG)
 
 .PHONY: manager
 manager: build  ## Alias for make build.
